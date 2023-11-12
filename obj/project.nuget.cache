@@ -1,0 +1,12 @@
+{
+  "version": 2,
+  "dgSpecHash": "qagWa2VlGs4Kv3lZoRkDrKZjP3+aGTyzFdRjgXxrOefR2UQswm1ueGqB5XlQb3szV80Zqy4ZLP95bvkbnYVTpw==",
+  "success": true,
+  "projectFilePath": "H:\\Program Files\\Steam\\steamapps\\common\\Lunacid\\Dev\\LunaticPatch\\LunaticPatch.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\Empio\\.nuget\\packages\\microsoft.netcore.platforms\\1.1.0\\microsoft.netcore.platforms.1.1.0.nupkg.sha512",
+    "C:\\Users\\Empio\\.nuget\\packages\\microsoft.netframework.referenceassemblies.net40\\1.0.3\\microsoft.netframework.referenceassemblies.net40.1.0.3.nupkg.sha512",
+    "C:\\Users\\Empio\\.nuget\\packages\\netstandard.library\\2.0.3\\netstandard.library.2.0.3.nupkg.sha512"
+  ],
+  "logs": []
+}
