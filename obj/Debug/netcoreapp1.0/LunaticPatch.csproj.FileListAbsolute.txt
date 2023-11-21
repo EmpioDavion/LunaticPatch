@@ -1,5 +1,0 @@
-H:\Program Files\Steam\steamapps\common\Lunacid\Dev\LunaticPatch\obj\Debug\netcoreapp1.0\LunaticPatch.csproj.AssemblyReference.cache
-H:\Program Files\Steam\steamapps\common\Lunacid\Dev\LunaticPatch\obj\Debug\netcoreapp1.0\LunaticPatch.GeneratedMSBuildEditorConfig.editorconfig
-H:\Program Files\Steam\steamapps\common\Lunacid\Dev\LunaticPatch\obj\Debug\netcoreapp1.0\LunaticPatch.AssemblyInfoInputs.cache
-H:\Program Files\Steam\steamapps\common\Lunacid\Dev\LunaticPatch\obj\Debug\netcoreapp1.0\LunaticPatch.AssemblyInfo.cs
-H:\Program Files\Steam\steamapps\common\Lunacid\Dev\LunaticPatch\obj\Debug\netcoreapp1.0\LunaticPatch.csproj.CoreCompileInputs.cache

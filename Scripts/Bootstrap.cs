@@ -22,7 +22,7 @@ public class Bootstrap : BaseUnityPlugin
 		{
 			var originals = typeof(Resources).GetMethods(BindingFlags.Public | BindingFlags.Static);
 			var original = System.Array.Find(originals, (x) => !x.IsGenericMethod && x.Name == "Load");
-			var prefix = typeof(LunaticPatch.LunaticPatch).GetMethod("ReplaceAsset", BindingFlags.NonPublic | BindingFlags.Static);
+			var prefix = typeof(LunaticPatch.LunaticPatch).GetMethod("OnResourcesLoad", BindingFlags.NonPublic | BindingFlags.Static);
 
 			harmony.Patch(original, prefix: new HarmonyMethod(prefix));
 		}
