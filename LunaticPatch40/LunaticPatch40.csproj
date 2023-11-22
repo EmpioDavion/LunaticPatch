@@ -42,7 +42,7 @@
     <Exec Command="dotnet tool restore" />
   </Target>
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-    <Exec Command="SET TargetFolder=&quot;$(SolutionDir)..\..\Bepinex\Plugins\Lunatic\&quot;&#xD;&#xA;&#xD;&#xA;COPY &quot;$(TargetPath)&quot; %25TargetFolder%25&#xD;&#xA;COPY &quot;$(TargetPath)&quot; &quot;$(SolutionDir)..\LunaticModTemplate\LunaticBuild\&quot;" />
+    <Exec Command="SET TargetFolder=&quot;$(SolutionDir)..\..\Bepinex\Plugins\Lunatic\&quot;&#xD;&#xA;&#xD;&#xA;COPY &quot;$(TargetPath)&quot; %25TargetFolder%25&#xD;&#xA;COPY &quot;$(TargetPath)&quot; &quot;$(SolutionDir)..\LunaticModTemplate\LunaticBuild\&quot;&#xD;&#xA;&#xD;&#xA;IF &quot;$(ConfigurationName)&quot; == &quot;Debug&quot; (&#xD;&#xA;    COPY &quot;$(TargetDir)$(TargetName).pdb&quot; %25TargetFolder%25&#xD;&#xA;)" />
   </Target>
 
 </Project>

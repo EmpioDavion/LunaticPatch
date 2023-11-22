@@ -1,5 +1,6 @@
 ﻿using BepInEx.Logging;
 using HarmonyLib;
+using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 
@@ -165,6 +166,63 @@ namespace LunaticPatch
 			Lunatic.Internal_InitRecipesArray(__instance);
 		}
 
+		[HarmonyPostfix]
+		[HarmonyPatch(typeof(Alki), "Reset")]
+		internal static void OnAlkiReset(Alki __instance)
+		{
+			void CheckHasNeeded(Alki alki, ref int id, int count)
+			{
+				if (id == -1 || count == 0)
+					return;
+
+				string idStr = id.ToString();
+
+				string[] array = alki.CON.CURRENT_PL_DATA.MATER;
+				int index = System.Array.FindIndex(array, (x) => !string.IsNullOrEmpty(x) && x.Substring(0, x.Length - 2) == idStr);
+
+				if (index >= 0)
+				{
+					int has = int.Parse(array[index].Substring(array[index].Length - 2));
+
+					if (has < count)
+						id = -1;
+				}
+			}
+
+			// if any of the select materials are the same, the first of them will have their need at the total value,
+			// and the remaining will be reduced by 1 per duplicate, example of all the same (need1 = 3, need2 = 2, need3 = 1)
+			// this is because the amount of that material needed will be reduced as each one is removed from the forge selection
+			int need1 = 0;
+			int need2 = 0;
+			int need3 = 0;
+
+			if (__instance.current_1 != -1)
+				need1++;
+
+			if (__instance.current_2 != -1)
+			{
+				if (__instance.current_2 == __instance.current_1)
+					need1++;
+				
+				need2++;
+			}
+
+			if (__instance.current_3 != -1)
+			{
+				if (__instance.current_3 == __instance.current_1)
+					need1++;
+				
+				if (__instance.current_3 == __instance.current_2)
+					need2++;
+				
+				need3++;
+			}
+
+			CheckHasNeeded(__instance, ref __instance.current_1, need1);
+			CheckHasNeeded(__instance, ref __instance.current_2, need2);
+			CheckHasNeeded(__instance, ref __instance.current_3, need3);
+		}
+
 		[HarmonyPrefix]
 		[HarmonyPatch(typeof(Item_Pickup_scr), "Pickup")]
 		internal static void OnItemPickupPickup(Item_Pickup_scr __instance)
@@ -227,23 +285,6 @@ namespace LunaticPatch
 			{
 				int slash = value.IndexOf('/', 3);
 				value = value.Substring(slash + 1);
-			}
-		}
-
-		// TODO: Forging when using more of a material than you have, will cause a null reference exception
-		// need to prevent player from adding what they don't have
-		[HarmonyPrefix]
-		[HarmonyPatch(typeof(CONTROL), "RemoveMatter")]
-		internal static void OnControlRemoveMatter(CONTROL __instance, string matt)
-		{
-			Debug.Log("Matter: " + matt);
-
-			foreach (string mater in __instance.CURRENT_PL_DATA.MATER)
-			{
-				if (string.IsNullOrEmpty(mater))
-					break;
-
-				Debug.Log("Material: " + mater);
 			}
 		}
 	}

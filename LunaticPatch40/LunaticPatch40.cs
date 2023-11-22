@@ -210,6 +210,56 @@ namespace LunaticBridge
 		}
 
 		[HarmonyTranspiler]
+		[HarmonyPatch(typeof(Alki), "Set")]
+		internal static IEnumerable<CodeInstruction> AlkiSetTranspiler(IEnumerable<CodeInstruction> instructions)
+		{
+			int step = 0;
+			Label label = default;
+			FieldInfo con = typeof(Alki).GetField("CON", BindingFlags.Public | BindingFlags.Instance);
+			FieldInfo data = typeof(CONTROL).GetField("CURRENT_PL_DATA", BindingFlags.Public | BindingFlags.Instance);
+			FieldInfo mater = typeof(PlayerData).GetField("MATER", BindingFlags.Public | BindingFlags.Instance);
+
+			Debug.Assert(con != null, "CON is null");
+			Debug.Assert(data != null, "CURRENT_PL_DATA is null");
+			Debug.Assert(mater != null, "MATER is null");
+
+			foreach (CodeInstruction instruction in instructions)
+			{
+				// if (MATER[j] == "")
+				if (step == 0) 
+				{
+					// brfalse IL_0085
+					if (instruction.opcode == OpCodes.Brfalse)
+					{
+						step++;
+						label = (Label)instruction.operand;
+					}
+				}
+				else if (step == 1)
+				{
+					step++;
+
+					// if (MATER[j] != null)
+					yield return new CodeInstruction(OpCodes.Ldarg_0);
+					yield return new CodeInstruction(OpCodes.Ldfld, con);
+					yield return new CodeInstruction(OpCodes.Ldfld, data);
+					yield return new CodeInstruction(OpCodes.Ldfld, mater);
+					yield return new CodeInstruction(OpCodes.Ldloc_1);
+					yield return new CodeInstruction(OpCodes.Ldelem_Ref);
+					yield return new CodeInstruction(OpCodes.Brfalse, label);
+				}
+
+				yield return instruction;
+			}
+
+			if (step != 2)
+			{
+				Logger.LogError("Transpiling Alki.Set failed");
+				PrintILCode(instructions);
+			}
+		}
+
+		[HarmonyTranspiler]
 		[HarmonyPatch(typeof(Alki), "FORGE")]
 		internal static IEnumerable<CodeInstruction> AlkiForgeTranspiler(IEnumerable<CodeInstruction> instructions)
 		{
@@ -221,7 +271,7 @@ namespace LunaticBridge
 			{
 				if (step == 0)
 				{
-					// zONE_.Substring(...)
+					// zONE_.Substring(...) IL_02be
 					if (instruction.opcode == OpCodes.Ldloc_S)
 					{
 						step++;
@@ -235,6 +285,7 @@ namespace LunaticBridge
 				}
 				else if (step == 1)
 				{
+					// if (zONE_ == ...) IL_0306
 					if (instruction.opcode == OpCodes.Brfalse)
 					{
 						step++;
@@ -284,6 +335,111 @@ namespace LunaticBridge
 			if (!found)
 			{
 				Logger.LogError("Transpiling Menus.SortArray failed");
+				PrintILCode(instructions);
+			}
+		}
+
+		[HarmonyTranspiler]
+		[HarmonyPatch(typeof(Menus), "LoadText")]
+		internal static IEnumerable<CodeInstruction> MenusLoadTextTranspiler(IEnumerable<CodeInstruction> instructions, ILGenerator generator)
+		{
+			int step = 0;
+			Label label = default;
+			MethodInfo checkIngredientCounts = typeof(Lunatic).GetMethod("Internal_CheckIngredientCounts", BindingFlags.Public | BindingFlags.Static);
+			FieldInfo eqSlot = typeof(Menus).GetField("EQ_SLOT", BindingFlags.NonPublic | BindingFlags.Instance);
+			Label continueLabel = generator.DefineLabel();
+			LocalBuilder num51 = null;
+
+			Debug.Assert(checkIngredientCounts != null, "checkIngredientCounts is null");
+			Debug.Assert(eqSlot != null, "eqSlot is null");
+
+			foreach (CodeInstruction instruction in instructions)
+			{
+				if (step == 0)
+				{
+					// switch (text2load)
+					if (instruction.opcode == OpCodes.Switch)
+					{
+						step++;
+
+						// case 13 IL_27d7
+						Label[] labels = (Label[])instruction.operand;
+						label = labels[13];
+					}
+				}
+				else if (step == 1)
+				{
+					// for (int n = 1...) IL_27d7
+					if (instruction.labels.Contains(label))
+						step++;
+				}
+				else if (step == 2)
+				{
+					// TextMeshProUGUI.text = "Nothing" IL_284e
+					if (instruction.opcode == OpCodes.Ldstr &&
+						(string)instruction.operand == "Nothing")
+						step++;
+				}
+				else if (step == 3)
+				{
+					// for (int num51 = 0...) IL2859
+					if (instruction.opcode == OpCodes.Stloc_S)
+					{
+						step++;
+						num51 = (LocalBuilder)instruction.operand;
+					}
+				}
+				else if (step == 4)
+				{
+					// for (int num51 = 0...) IL285b
+					if (instruction.opcode == OpCodes.Br)
+						step++;
+				}
+				else if (step == 5)
+				{
+					// Object.Instantiate(...) IL_2891
+					if (instruction.opcode == OpCodes.Ldfld &&
+						((FieldInfo)instruction.operand).Name == "ITEMS")
+					{
+						step++;
+
+						// previous instruction is ldarg.0
+
+						// if (!Lunatic.Internal_CheckIngredientCounts(this, num20, EQ_SLOT))
+						//	continue
+						yield return new CodeInstruction(OpCodes.Ldloc_S, num51);               // num51
+						yield return new CodeInstruction(OpCodes.Ldarg_0);                      // this.
+						yield return new CodeInstruction(OpCodes.Ldfld, eqSlot);                // EQ_SLOT
+						yield return new CodeInstruction(OpCodes.Call, checkIngredientCounts);  // Lunatic.Internal_CheckIngredientCounts
+						yield return new CodeInstruction(OpCodes.Brfalse, continueLabel);       // if false goto continueLabel
+						yield return new CodeInstruction(OpCodes.Ldarg_0);                      // this (since we are using the previous instruction)
+					}
+				}
+				else if (step == 6)
+				{
+					// TMP_Text.set_text(...) IL_2917
+					if (instruction.opcode == OpCodes.Callvirt &&
+						((MethodInfo)instruction.operand).Name == "set_text")
+						step++;
+				}
+				else if (step == 7)
+				{
+					// ldloc.s 75 IL291c
+					if (instruction.opcode == OpCodes.Ldloc_S &&
+						(LocalBuilder)instruction.operand == num51)
+					{
+						step++;
+
+						instruction.labels.Add(continueLabel);
+					}
+				}
+
+				yield return instruction;
+			}
+
+			if (step != 8)
+			{
+				Logger.LogError("Transpiling Menus.LoadText failed - Step: " + step);
 				PrintILCode(instructions);
 			}
 		}
