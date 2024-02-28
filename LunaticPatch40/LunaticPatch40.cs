@@ -1,75 +1,202 @@
 ﻿using BepInEx.Logging;
 using HarmonyLib;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Reflection;
 using System.Reflection.Emit;
+using UnityEngine;
 
-namespace LunaticBridge
+namespace LunaticPatch40
 {
 	[HarmonyPatch]
 	public static class LunaticPatch40
 	{
 		public static ManualLogSource Logger;
 
-		//[HarmonyTranspiler]
-		//[HarmonyPatch(typeof(Alki), "Reset")]
-		//internal static IEnumerable<CodeInstruction> AlkiResetTranspiler(IEnumerable<CodeInstruction> instructions)
-		//{
-		//	bool found = false;
-
-		//	FieldInfo recipesFI = typeof(Alki).GetField("Recipes");
-
-		//	foreach (CodeInstruction instruction in instructions)
-		//	{
-		//		// safe because ldc_I4 implies an int operand
-		//		// Alki.ValidRecipes = new Alki.Recipe[128] (partial)
-		//		if (!found && instruction.opcode == OpCodes.Ldc_I4 && (int)instruction.operand == 128)
-		//		{
-		//			// Alki.Recipes.Length
-		//			yield return new CodeInstruction(OpCodes.Ldarg_0);
-		//			yield return new CodeInstruction(OpCodes.Ldfld, recipesFI);
-		//			yield return new CodeInstruction(OpCodes.Ldlen);
-		//			yield return new CodeInstruction(OpCodes.Conv_I4);
-
-		//			found = true;
-		//			continue;
-		//		}
-
-		//		yield return instruction;
-		//	}
-
-		//	if (!found)
-		//	{
-		//		Logger.LogError("Transpiling Alki.Reset failed");
-		//		PrintILCode(instructions);
-		//	}
-		//}
-
+		// stops Lunacid from reloading save data unnecessarily only to overwrite it with the held save data
 		[HarmonyTranspiler]
-		[HarmonyPatch(typeof(Save), "LOAD_FILE")]
-		internal static IEnumerable<CodeInstruction> SaveLoadFileTranspiler(IEnumerable<CodeInstruction> instructions)
+		[HarmonyPatch(typeof(CONTROL), "Start")]
+		internal static IEnumerable<CodeInstruction> ControlStartTranspiler(IEnumerable<CodeInstruction> instructions, ILGenerator generator)
 		{
-			bool found = false;
-			MethodInfo onPlayerDataLoad = typeof(Lunatic).GetMethod("Internal_OnPlayerDataLoad", BindingFlags.Public | BindingFlags.Static);
+			int step = 0;
+			Label label = generator.DefineLabel();
+			MethodInfo checkHeldData = typeof(Lunatic).GetMethod("Internal_CheckHeldData", BindingFlags.Public | BindingFlags.Static);
 
 			foreach (CodeInstruction instruction in instructions)
 			{
-				// return result
-				if (!found && instruction.opcode == OpCodes.Ret)
+				if (step == 0)
 				{
-					found = true;
+					// CURRENT_PL_DATA = Save.LOAD_FILE(...) IL_0036
+					if (instruction.opcode == OpCodes.Call)
+					{
+						MethodInfo methodInfo = (MethodInfo)instruction.operand;
 
-					// Lunatic.Internal_OnPlayerDataSave returns the same player data to preserve the stack value
-					// as the player data is never assigned to a local slot in Save.LOAD_FILE
-					// return Lunatic.Internal_OnPlayerDataSave(result)
-					yield return new CodeInstruction(OpCodes.Call, onPlayerDataLoad);
+						if (methodInfo.Name == "LOAD_FILE")
+						{
+							step++;
+
+							// if (!Lunatic.InternalCheckHeldData(this, int))
+							yield return new CodeInstruction(OpCodes.Call, checkHeldData);
+							yield return new CodeInstruction(OpCodes.Brtrue, label);
+							continue;
+						}
+					}
+				}
+				else if (step == 1)
+				{
+					// // IL_003b
+					step++;
+					continue;
+				}
+				else if (step == 2)
+				{
+					// if (Hold_Data.HD != null && Hold_Data.HD.PLAYER_NAME != "") IL_0076
+					if (instruction.opcode == OpCodes.Ldsfld)
+					{
+						FieldInfo fieldInfo = (FieldInfo)instruction.operand;
+
+						if (fieldInfo.Name == "HD")
+						{
+							step++;
+							instruction.labels.Add(label);
+						}
+					}
 				}
 
 				yield return instruction;
 			}
 
-			if (!found)
+			if (step != 3)
+			{
+				Logger.LogError("Transpiling CONTROL.Start failed - Step: " + step);
+				PrintILCode(instructions);
+			}
+		}
+
+		[HarmonyTranspiler]
+		[HarmonyPatch(typeof(Dialog), "SkipSpeech")]
+		internal static IEnumerable<CodeInstruction> DialogSkipSpeechTranspiler(IEnumerable<CodeInstruction> instructions)
+		{
+			MethodInfo setBlendShapeWeight = typeof(ModDialog).GetMethod("SetBlendShapeWeight");
+
+			foreach (CodeInstruction instruction in instructions)
+			{
+				// Mouth.SetBlendShapeWeight(...) IL_0057
+				if (instruction.opcode == OpCodes.Callvirt)
+				{
+					MethodInfo methodInfo = (MethodInfo)instruction.operand;
+
+					if (methodInfo.Name == "SetBlendShapeWeight")
+					{
+						// ModDialog.SetBlendShapeWeight(...)
+						yield return new CodeInstruction(OpCodes.Ldarg_0);
+						yield return new CodeInstruction(OpCodes.Call, setBlendShapeWeight);
+						continue;
+					}
+				}
+
+				yield return instruction;
+			}
+		}
+
+		// needs to be manually patched to affect enumerator coroutine
+		//[HarmonyTranspiler]
+		//[HarmonyPatch(typeof(Dialog), "AnimateText")]
+		internal static IEnumerable<CodeInstruction> DialogAnimateTextTranspiler(IEnumerable<CodeInstruction> instructions)
+		{
+			MethodInfo getBlendShapeWeight = typeof(ModDialog).GetMethod("GetBlendShapeWeight", BindingFlags.Public | BindingFlags.Static);
+			MethodInfo setBlendShapeWeight = typeof(ModDialog).GetMethod("SetBlendShapeWeight", BindingFlags.Public | BindingFlags.Static);
+
+			Debug.Assert(getBlendShapeWeight != null, "GetBlendShapeWeight is null");
+			Debug.Assert(setBlendShapeWeight != null, "SetBlendShapeWeight is null");
+
+			foreach (CodeInstruction instruction in instructions)
+			{
+				// Mouth.getBlendShapeWeight(...)
+				if (instruction.opcode == OpCodes.Callvirt)
+				{
+					MethodInfo methodInfo = (MethodInfo)instruction.operand;
+
+					if (methodInfo.Name == "GetBlendShapeWeight")
+					{
+						// ModDialog.GetBlendShapeWeight(...)
+						yield return new CodeInstruction(OpCodes.Ldloc_1);
+						yield return new CodeInstruction(OpCodes.Call, getBlendShapeWeight);
+
+						continue;
+					}
+				}
+
+				// Mouth.SetBlendShapeWeight(...)
+				if (instruction.opcode == OpCodes.Callvirt)
+				{
+					MethodInfo methodInfo = (MethodInfo)instruction.operand;
+
+					if (methodInfo.Name == "SetBlendShapeWeight")
+					{
+						// ModDialog.SetBlendShapeWeight(...)
+						yield return new CodeInstruction(OpCodes.Ldloc_1);
+						yield return new CodeInstruction(OpCodes.Call, setBlendShapeWeight);
+
+						continue;
+					}
+				}
+
+				yield return instruction;
+			}
+		}
+
+		[HarmonyTranspiler]
+		[HarmonyPatch(typeof(Save), "LOAD_FILE")]
+		internal static IEnumerable<CodeInstruction> SaveLoadFileTranspiler(IEnumerable<CodeInstruction> instructions, ILGenerator generator)
+		{
+			int step = 0;
+			MethodInfo onPlayerDataLoad = typeof(Lunatic).GetMethod("Internal_OnPlayerDataLoad", BindingFlags.Public | BindingFlags.Static);
+			LocalBuilder playerData = generator.DeclareLocal(typeof(PlayerData), true);
+			byte saveSlot = 0;
+
+			Debug.Assert(onPlayerDataLoad != null, "onPlayerDataLoad is null");
+
+			foreach (CodeInstruction instruction in instructions)
+			{
+				if (step == 0)
+				{
+					// PlayerData result = ...
+					if (instruction.opcode == OpCodes.Ldarga_S)
+					{
+						step++;
+						saveSlot = (byte)instruction.operand;
+					}
+				}
+				else if (step == 1)
+				{
+					// PlayerData result = ...
+					if (instruction.opcode == OpCodes.Isinst)
+					{
+						step++;
+						yield return instruction;
+						yield return new CodeInstruction(OpCodes.Stloc, playerData);
+						continue;
+					}
+				}
+				else if (step == 2)
+				{
+					// return result
+					if (instruction.opcode == OpCodes.Ret)
+					{
+						step++;
+
+						// Lunatic.Internal_OnPlayerDataLoad(result, Save_Slot)
+						yield return new CodeInstruction(OpCodes.Ldloc, playerData);
+						yield return new CodeInstruction(OpCodes.Ldarg_S, saveSlot);
+						yield return new CodeInstruction(OpCodes.Call, onPlayerDataLoad);
+						yield return new CodeInstruction(OpCodes.Ldloc, playerData);
+					}
+				}
+
+				yield return instruction;
+			}
+
+			if (step != 3)
 			{
 				Logger.LogError("Transpiling Save.LOAD_FILE failed");
 				PrintILCode(instructions);
@@ -90,8 +217,9 @@ namespace LunaticBridge
 				{
 					found = true;
 
-					// Lunatic.Internal_OnPlayerDataSave(graph)
+					// Lunatic.Internal_OnPlayerDataSave(graph, Save_Slot)
 					yield return new CodeInstruction(OpCodes.Ldloc_1);
+					yield return new CodeInstruction(OpCodes.Ldarg_0);
 					yield return new CodeInstruction(OpCodes.Call, onPlayerDataSave);
 				}
 
@@ -112,7 +240,7 @@ namespace LunaticBridge
 			bool found = false;
 			MethodInfo onItemPickupStart = typeof(Lunatic).GetMethod("Internal_OnItemPickupStart", BindingFlags.Public | BindingFlags.Static);
 
-			Debug.Assert(onItemPickupStart != null, $"{nameof(onItemPickupStart)} is null");
+			UnityEngine.Debug.Assert(onItemPickupStart != null, $"{nameof(onItemPickupStart)} is null");
 
 			Label label = generator.DefineLabel();
 
@@ -309,7 +437,7 @@ namespace LunaticBridge
 		internal static IEnumerable<CodeInstruction> MenusSortArrayTranspiler(IEnumerable<CodeInstruction> instructions)
 		{
 			bool found = false;
-			MethodInfo sortWeapons = typeof(Lunatic).GetMethod("SortWeapons", BindingFlags.Public | BindingFlags.Static);
+			MethodInfo sortWeapons = typeof(Lunatic).GetMethod("Internal_SortList", BindingFlags.Public | BindingFlags.Static);
 
 			foreach (CodeInstruction instruction in instructions)
 			{

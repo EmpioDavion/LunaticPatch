@@ -1,6 +1,5 @@
 ﻿using BepInEx.Logging;
 using HarmonyLib;
-using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 
@@ -40,6 +39,14 @@ namespace LunaticPatch
 			return !Lunatic.Internal_ReplaceAsset(ref __result, path);
 		}
 
+		[HarmonyPrefix]
+		[HarmonyPatch(typeof(Dialog), "AnimateText")]
+		internal static void OnDialogAnimateText(Dialog __instance)
+		{
+			if (__instance is ModDialog modDialog)
+				modDialog.Internal_OnSpeak(__instance.Current_Line);
+		}
+
 		[HarmonyPostfix]
 		[HarmonyPatch(typeof(Player_Feet), "Jump")]
 		internal static void OnPlayerFeetJump(Player_Control_scr ___Player)
@@ -48,33 +55,19 @@ namespace LunaticPatch
 		}
 
 		[HarmonyPostfix]
-		[HarmonyPatch(typeof(Save), "LOAD_FILE")]
-		internal static void OnSaveLoadFile(int Save_Slot)
+		[HarmonyPatch(typeof(Save), "ResetData")]
+		internal static void OnSaveResetData()
 		{
-			string file = Application.dataPath + "/SAVE_" + Save_Slot + ".LUNATIC";
-
-			Lunatic.Internal_LoadModData(file);
-		}
-
-		[HarmonyPostfix]
-		[HarmonyPatch(typeof(Save), "SAVE_FILE")]
-		internal static void OnSaveSaveFile(int Save_Slot, Vector3 POS, CONTROL CON)
-		{
-			string file = Application.dataPath + "/SAVE_" + Save_Slot + ".LUNATIC";
-
-			Lunatic.Internal_SaveModData(file);
+			Lunatic.Internal_OnPlayerDataDelete();
 		}
 
 		[HarmonyPrefix]
 		[HarmonyPatch(typeof(AREA_SAVED_ITEM), "Load")]
 		internal static bool OnMultipleStatesLoad(AREA_SAVED_ITEM __instance)
 		{
-			if (__instance.CON == null)
-				__instance.CON = Lunatic.Control;
-
 			if (__instance is ModMultipleStates modMultipleStates)
 			{
-				modMultipleStates.OnLoad();
+				modMultipleStates.Internal_Load();
 				return false;
 			}
 
@@ -85,12 +78,9 @@ namespace LunaticPatch
 		[HarmonyPatch(typeof(AREA_SAVED_ITEM), "Save")]
 		internal static bool OnMultipleStatesSave(AREA_SAVED_ITEM __instance)
 		{
-			if (__instance.CON == null)
-				__instance.CON = Lunatic.Control;
-
 			if (__instance is ModMultipleStates modMultipleStates)
 			{
-				modMultipleStates.OnSave();
+				modMultipleStates.Internal_Save();
 				return false;
 			}
 
@@ -120,43 +110,15 @@ namespace LunaticPatch
 
 		[HarmonyPrefix]
 		[HarmonyPatch(typeof(Dialog), "LOAD")]
-		internal static void OnDialogLoad(Dialog __instance)
+		internal static bool OnDialogLoad(Dialog __instance)
 		{
-			if (__instance.CON == null)
-				__instance.CON = Lunatic.Control;
-
-			for (int i = 0; i < __instance.OBJS.Length; i++)
+			if (__instance is ModDialog modDialog)
 			{
-				switch (__instance.OBJS[i].name)
-				{
-					case "UIREF_PLAYER_NAME":
-						__instance.OBJS[i] = Lunatic.UIReferences.PlayerName;
-						break;
-					case "UIREF_PLAYER_TYPED_TEXT":
-						__instance.OBJS[i] = Lunatic.UIReferences.PlayerTypedText;
-						break;
-					default:
-						break;
-				}
+				modDialog.Internal_Init();
+				return false;
 			}
-
-			for (int i = 0; i < __instance.OBJS2.Length; i++)
-			{
-				switch (__instance.OBJS2[i].name)
-				{
-					case "UIREF_PLAYER_RESPONSE_YES":
-						__instance.OBJS2[i] = Lunatic.UIReferences.PlayerResponseYes;
-						break;
-					case "UIREF_PLAYER_RESPONSE_NO":
-						__instance.OBJS2[i] = Lunatic.UIReferences.PlayerResponseNo;
-						break;
-					case "UIREF_PLAYER_RESPONSE_EXIT":
-						__instance.OBJS2[i] = Lunatic.UIReferences.PlayerResponseExit;
-						break;
-					default:
-						break;
-				}
-			}
+			
+			return true;
 		}
 
 		[HarmonyPostfix]
@@ -181,6 +143,20 @@ namespace LunaticPatch
 				modItemPickup.OnPickup();
 		}
 
+		[HarmonyPrefix]
+		[HarmonyPatch(typeof(Menus), "Click")]
+		internal static void OnMenusClick(Menus __instance, int which)
+		{
+			Debug.Log($"Menu Click: {which}, Query: {__instance.current_query}");
+		}
+
+		[HarmonyPrefix]
+		[HarmonyPatch(typeof(Menus), "LoadMenu")]
+		internal static void OnMenusLoadMenu(Menus __instance)
+		{
+			Debug.Log("Menu: " + __instance.current_menu);
+		}
+
 		[HarmonyPostfix]
 		[HarmonyPatch(typeof(Menus), "LoadSub")]
 		internal static void OnMenusLoadSub(Menus __instance)
@@ -195,6 +171,10 @@ namespace LunaticPatch
 		{
 			Debug.Log($"Sub Menu: {__instance.sub_menu}, Text: {text2load}");
 
+			//if (__instance.sub_menu == 12 && text2load == 9)
+			//	Lunatic.Internal_ResetHeldData();
+
+			// alchemy materials menu
 			if (__instance.sub_menu == 18 && text2load == 15)
 				Lunatic.Internal_AddMaterialTexts(__instance);
 		}
