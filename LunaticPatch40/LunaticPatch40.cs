@@ -240,7 +240,7 @@ namespace LunaticPatch40
 			bool found = false;
 			MethodInfo onItemPickupStart = typeof(Lunatic).GetMethod("Internal_OnItemPickupStart", BindingFlags.Public | BindingFlags.Static);
 
-			UnityEngine.Debug.Assert(onItemPickupStart != null, $"{nameof(onItemPickupStart)} is null");
+			Debug.Assert(onItemPickupStart != null, $"{nameof(onItemPickupStart)} is null");
 
 			Label label = generator.DefineLabel();
 
@@ -265,7 +265,7 @@ namespace LunaticPatch40
 
 			if (!found)
 			{
-				Logger.LogError("Transpiling Alki.OnEnable failed");
+				Logger.LogError("Transpiling Item_Pickup_scr.Start failed");
 				PrintILCode(instructions);
 			}
 		}
@@ -283,19 +283,20 @@ namespace LunaticPatch40
 			{
 				if (step == 0)
 				{
-					// start of for loop
+					// start of for loop IL_0008
 					if (instruction.opcode == OpCodes.Br)
 					{
 						step++;
 
+						Debug.Log($"{instruction.opcode} {instruction.operand}");
 						yield return instruction;
-
 					}
 				}
 				else if (step == 1)
 				{
 					step++;
 
+					// first instruction inside for loop IL_000a
 					CodeInstruction dupe = new CodeInstruction(instruction);
 					dupe.labels.Clear();
 
@@ -305,17 +306,17 @@ namespace LunaticPatch40
 					// calling function to save on needing to grab several fields
 					// if (!CheckRecipeIndex(this, i))
 					//	break;
-					yield return instruction;
-					yield return new CodeInstruction(OpCodes.Ldloc_2);
-					yield return new CodeInstruction(OpCodes.Call, checkRecipeIndex);
-					yield return new CodeInstruction(OpCodes.Brfalse, label);
+					yield return instruction;											// this
+					yield return new CodeInstruction(OpCodes.Ldloc_0);					// i
+					yield return new CodeInstruction(OpCodes.Call, checkRecipeIndex);	// CheckRecipeIndex
+					yield return new CodeInstruction(OpCodes.Brfalse, label);			// if false goto label
 					yield return dupe;
 
 					continue;
 				}
 				else if (step == 2)
 				{
-					// end of loop
+					// end of loop IL_0081
 					if (instruction.opcode == OpCodes.Blt)
 						step++;
 				}
@@ -333,6 +334,38 @@ namespace LunaticPatch40
 			if (step != 4)
 			{
 				Logger.LogError("Transpiling Alki.OnEnable failed - Step: " + step);
+				PrintILCode(instructions);
+			}
+		}
+
+		[HarmonyTranspiler]
+		[HarmonyPatch(typeof(Item_Pickup_scr), "Pickup")]
+		internal static IEnumerable<CodeInstruction> ItemPickupPickupTranspiler(IEnumerable<CodeInstruction> instructions, ILGenerator generator)
+		{
+			// string translation = null;
+			yield return new CodeInstruction(OpCodes.Ldnull);
+			yield return new CodeInstruction(OpCodes.Stloc_0);
+
+			int step = 0;
+
+			foreach (CodeInstruction instruction in instructions)
+			{
+				if (step == 0)
+				{
+					if (instruction.opcode == OpCodes.Ldstr) // IL_0013
+					{
+						Logger.LogInfo("Found ldstr " + instruction.operand);
+						step = 1;
+						yield return instruction;
+					}
+				}
+				else
+					yield return instruction;
+			}
+
+			if (step != 1)
+			{
+				Logger.LogError("Transpiling Item_Pickup_scr.Pickup failed");
 				PrintILCode(instructions);
 			}
 		}

@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "LunaticPatch": {
+      "commandName": "Project",
+      "workingDirectory": "I:\\SteamLibrary\\steamapps\\common\\Lunacid"
+    }
+  }
+}
