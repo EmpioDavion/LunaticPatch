@@ -1,5 +1,7 @@
 ﻿using BepInEx.Logging;
 using HarmonyLib;
+using System.Collections.Generic;
+using System.Reflection.Emit;
 using TMPro;
 using UnityEngine;
 
@@ -100,23 +102,22 @@ namespace LunaticPatch
 
 		[HarmonyPrefix]
 		[HarmonyPatch(typeof(Useable_Item), "Use")]
-		internal static bool OnUseableItemUse(Useable_Item __instance)
+		internal static void OnUseableItemUse(Useable_Item __instance)
 		{
 			if (__instance is ModItem modItem)
 			{
-				modItem.OnUse();
-
-				if (modItem.ITM_CAST != "0" && !string.IsNullOrEmpty(modItem.ITM_CAST))
+				if (__instance.Count > 0)
 				{
-					Transform tr = modItem.transform;
+					modItem.OnUse();
 
-					Object.Instantiate(Resources.Load(modItem.ITM_CAST), tr.position, tr.rotation);
+					if (modItem.spawnOnUse != null)
+					{
+						Transform tr = modItem.transform;
+
+						Object.Instantiate(modItem.spawnOnUse, tr.position, tr.rotation);
+					}
 				}
-
-				return false;
 			}
-
-			return true;
 		}
 
 		[HarmonyPrefix]
@@ -250,7 +251,10 @@ namespace LunaticPatch
 				return;
 
 			if (Term.Contains("TEMPLATE"))
+			{
+				Debug.Log("Term: " + Term);
 				Lunatic.PrintStackTrace();
+			}
 
 			if (Term.StartsWith(MATERIAL_PREFIX))
 			{
@@ -318,6 +322,37 @@ namespace LunaticPatch
 				default:
 					break;
 			}
+		}
+
+		[HarmonyPrefix]
+		[HarmonyPatch(typeof(Loot_scr), "OnEnable")]
+		internal static void OnLootAwake(Loot_scr __instance)
+		{
+			Lunatic.Internal_AddLoot(__instance);
+		}
+
+		[HarmonyPrefix]
+		[HarmonyPatch(typeof(Damage_Trigger), "OnTriggerStay")]
+		internal static void OnDamageTriggerOnTriggerStay(Damage_Trigger __instance, Collider obj, float ___last)
+		{
+			if (__instance.Constant && ___last < Time.time &&
+				__instance is ModDamageTrigger modDamageTrigger)
+			{
+				if (!modDamageTrigger.OnlyPL &&
+					obj.TryGetComponent(out OBJ_HEALTH health))
+					modDamageTrigger.HitObject(health, true);
+				else if (modDamageTrigger.EffectPlayer &&
+					obj.TryGetComponent(out Player_Control_scr player))
+					modDamageTrigger.HitPlayer(player, true);
+			}
+		}
+
+		[HarmonyPrefix]
+		[HarmonyPatch(typeof(Damage_Trigger), "Die")]
+		internal static void OnDamageTriggerDie(Damage_Trigger __instance, Transform obj)
+		{
+			if (__instance is ModDamageTrigger modDamageTrigger)
+				modDamageTrigger.HitPhysical(obj);
 		}
 
 		private static void SetModMaterialTexts(Menus menus, int selected)

@@ -29,12 +29,18 @@
     <Reference Include="UnityEngine">
       <HintPath>..\..\..\LUNACID_Data\Managed\UnityEngine.dll</HintPath>
     </Reference>
+    <Reference Include="UnityEngine.AnimationModule">
+      <HintPath>..\..\..\LUNACID_Data\Managed\UnityEngine.AnimationModule.dll</HintPath>
+    </Reference>
     <Reference Include="UnityEngine.AssetBundleModule">
       <HintPath>..\..\..\LUNACID_Data\Managed\UnityEngine.AssetBundleModule.dll</HintPath>
     </Reference>
     <Reference Include="UnityEngine.CoreModule">
       <HintPath>..\..\..\LUNACID_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
     </Reference>
+	  <Reference Include="UnityEngine.PhysicsModule">
+		  <HintPath>..\..\..\LUNACID_Data\Managed\UnityEngine.PhysicsModule.dll</HintPath>
+	  </Reference>
     <Reference Include="UnityEngine.UI">
       <HintPath>..\..\..\LUNACID_Data\Managed\UnityEngine.UI.dll</HintPath>
     </Reference>

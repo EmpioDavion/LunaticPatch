@@ -605,6 +605,48 @@ namespace LunaticPatch40
 			}
 		}
 
+		[HarmonyTranspiler]
+		[HarmonyPatch(typeof(Damage_Trigger), "OnTriggerEnter")]
+		internal static IEnumerable<CodeInstruction> OnDamageTriggerOnTriggerEnter(IEnumerable<CodeInstruction> instructions)
+		{
+			int step = 0;
+
+			MethodInfo method = typeof(Lunatic).GetMethod("Internal_DamageTriggerEnter", BindingFlags.Public | BindingFlags.Static);
+			OpCode lastWhich = OpCodes.Ldc_I4_1;
+
+			foreach (CodeInstruction instruction in instructions)
+			{
+				if (instruction.opcode == OpCodes.Ldc_I4_0 ||
+					instruction.opcode == OpCodes.Ldc_I4_1)
+					lastWhich = instruction.opcode;
+
+				if (instruction.opcode == OpCodes.Call &&
+					instruction.operand is MethodInfo hurt &&
+					hurt.DeclaringType == typeof(Damage_Trigger) && hurt.Name == "Hurt")
+				{
+					yield return instruction;								// Hurt(obj, #)
+
+					// Lunatic.Internal_DamageTriggerEnter(dmg, obj, #)
+					yield return new CodeInstruction(OpCodes.Ldarg_0);		// dmg (Damage_Trigger)
+					yield return new CodeInstruction(OpCodes.Ldarg_1);      // obj (Collider)
+					yield return new CodeInstruction(lastWhich);			// # (int which)
+					yield return new CodeInstruction(OpCodes.Call, method); // call lunatic function
+
+					step++;
+
+					continue;
+				}
+
+				yield return instruction;
+			}
+
+			if (step != 2)
+			{
+				Logger.LogError("Transpiling Damage_Trigger.OnTriggerEnter failed - Step: " + step);
+				PrintILCode(instructions);
+			}
+		}
+
 		internal static bool CheckZoneIndex(Alki alki, int index)
 		{
 			return index < alki.CON.CURRENT_PL_DATA.ZONE_8.Length;
